@@ -86,8 +86,8 @@ pub fn new_map_rooms_and_corridors() -> Map {
         let w = rng.range(MIN_SIZE, MAX_SIZE);
         let h = rng.range(MIN_SIZE, MAX_SIZE);
 
-        let x = rng.roll_dice(1, COLUMNS_MAX - w - 1) - 1;
-        let y = rng.roll_dice(1, ROWS_MAX - h - 1) - 1;
+        let x = rng.roll_dice(1, COLUMNS_MAX - w - 2);
+        let y = rng.roll_dice(1, ROWS_MAX - h - 2);
 
         let new_room = Rect::new(x, y, w, h);
         let mut ok = true;

@@ -84,6 +84,40 @@ fn main() -> rltk::BError {
     let (player_x, player_y) = map.rooms[0].center();
 
     // Monsters
+    spawn_monsters(&mut gs, &map);
+
+    gs.ecs.insert(map);
+
+    // Player
+    gs.ecs
+        .create_entity()
+        .with(Position {
+            x: player_x,
+            y: player_y,
+        })
+        .with(Renderable {
+            glyph: rltk::to_cp437('@'),
+            fg: RGB::named(rltk::YELLOW),
+            bg: RGB::named(rltk::BLACK),
+        })
+        .with(Player {})
+        .with(Name {
+            name: "Player".to_string(),
+        })
+        .with(Viewshed {
+            visible_tiles: Vec::new(),
+            range: 8,
+            dirty: true,
+        })
+        .build();
+
+    // add player position for monster AI
+    gs.ecs.insert(Point::new(player_x, player_y));
+
+    rltk::main_loop(context, gs)
+}
+
+fn spawn_monsters(gs: &mut State, map: &Map) {
     let mut rng = rltk::RandomNumberGenerator::new();
     for (i, room) in map.rooms.iter().skip(1).enumerate() {
         let (x, y) = room.center();
@@ -112,7 +146,7 @@ fn main() -> rltk::BError {
             })
             .with(Monster {})
             .with(Name {
-                name: format!("{} #{}", &name, i),
+                name: format!("{} #{}", &name, i + 1),
             })
             .with(Viewshed {
                 visible_tiles: Vec::new(),
@@ -121,33 +155,4 @@ fn main() -> rltk::BError {
             })
             .build();
     }
-
-    gs.ecs.insert(map);
-
-    // Player
-    gs.ecs
-        .create_entity()
-        .with(Position {
-            x: player_x,
-            y: player_y,
-        })
-        .with(Renderable {
-            glyph: rltk::to_cp437('@'),
-            fg: RGB::named(rltk::YELLOW),
-            bg: RGB::named(rltk::BLACK),
-        })
-        .with(Player {})
-        .with(Name {
-            name: "Player".to_string(),
-        })
-        .with(Viewshed {
-            visible_tiles: Vec::new(),
-            range: 8,
-            dirty: true,
-        })
-        .build();
-
-    gs.ecs.insert(Point::new(player_x, player_y));
-
-    rltk::main_loop(context, gs)
 }
