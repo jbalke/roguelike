@@ -3,9 +3,9 @@ use rltk::{Algorithm2D, BaseMap, Point, RandomNumberGenerator, Rltk, RGB};
 use specs::prelude::*;
 use std::cmp::{max, min};
 
-pub const ROWS_MAX: i32 = 50;
-pub const COLUMNS_MAX: i32 = 80;
-pub const MAP_AREA: usize = (ROWS_MAX * COLUMNS_MAX) as usize;
+pub const MAPWIDTH: usize = 80;
+pub const MAPHEIGHT: usize = 43;
+pub const MAPCOUNT: usize = MAPHEIGHT * MAPWIDTH;
 
 #[derive(PartialEq, Copy, Clone)]
 pub enum TileType {
@@ -137,14 +137,14 @@ impl BaseMap for Map {
 
 pub fn new_map_rooms_and_corridors() -> Map {
     let mut map = Map {
-        tiles: vec![TileType::Wall; MAP_AREA],
+        tiles: vec![TileType::Wall; MAPCOUNT],
         rooms: Vec::new(),
-        width: COLUMNS_MAX,
-        height: ROWS_MAX,
-        revealed_tiles: vec![false; MAP_AREA],
-        visible_tiles: vec![false; MAP_AREA],
-        blocked: vec![false; MAP_AREA],
-        tile_content: vec![Vec::new(); MAP_AREA],
+        width: MAPWIDTH as i32,
+        height: MAPHEIGHT as i32,
+        revealed_tiles: vec![false; MAPCOUNT],
+        visible_tiles: vec![false; MAPCOUNT],
+        blocked: vec![false; MAPCOUNT],
+        tile_content: vec![Vec::new(); MAPCOUNT],
     };
 
     const MAX_ROOMS: i32 = 30;
@@ -157,8 +157,8 @@ pub fn new_map_rooms_and_corridors() -> Map {
         let w = rng.range(MIN_SIZE, MAX_SIZE);
         let h = rng.range(MIN_SIZE, MAX_SIZE);
 
-        let x = rng.roll_dice(1, COLUMNS_MAX - w - 2);
-        let y = rng.roll_dice(1, ROWS_MAX - h - 2);
+        let x = rng.roll_dice(1, (MAPWIDTH as i32) - w - 2) - 1;
+        let y = rng.roll_dice(1, (MAPHEIGHT as i32) - h - 2) - 1;
 
         let new_room = Rect::new(x, y, w, h);
         let mut ok = true;

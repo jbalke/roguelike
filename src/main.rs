@@ -1,6 +1,8 @@
 use rltk::{GameState, Point, Rltk, RGB};
 use specs::prelude::*;
+
 mod components;
+mod gui;
 pub use components::*;
 mod map;
 pub use map::*;
@@ -92,6 +94,8 @@ impl GameState for State {
                 ctx.set(pos.x, pos.y, render.fg, render.bg, render.glyph)
             }
         }
+
+        gui::draw_ui(&self.ecs, ctx)
     }
 }
 
