@@ -1,8 +1,10 @@
 use rltk::{GameState, Point, Rltk, RGB};
 use specs::prelude::*;
 
-mod components;
+mod gamelog;
 mod gui;
+pub use gamelog::GameLog;
+mod components;
 pub use components::*;
 mod map;
 pub use map::*;
@@ -101,9 +103,10 @@ impl GameState for State {
 
 fn main() -> rltk::BError {
     use rltk::RltkBuilder;
-    let context = RltkBuilder::simple80x50()
+    let mut context = RltkBuilder::simple80x50()
         .with_title("Roguelike Tutorial")
         .build()?;
+    context.with_post_scanlines(true);
     let mut gs = State { ecs: World::new() };
     gs.ecs.register::<Position>();
     gs.ecs.register::<Renderable>();
@@ -197,6 +200,9 @@ fn main() -> rltk::BError {
     gs.ecs.insert(Point::new(player_x, player_y));
     gs.ecs.insert(player_entity);
     gs.ecs.insert(RunState::PreRun);
+    gs.ecs.insert(GameLog {
+        entries: vec!["Welcome to the Rusty RogueLike".to_string()],
+    });
 
     rltk::main_loop(context, gs)
 }
