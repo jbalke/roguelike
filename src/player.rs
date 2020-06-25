@@ -60,6 +60,8 @@ pub fn player_input(gs: &mut State, ctx: &mut Rltk) -> RunState {
         None => return RunState::AwaitingInput, // Nothing happened
         Some(key) => match key {
             VirtualKeyCode::G => get_item(&mut gs.ecs),
+            VirtualKeyCode::I => return RunState::ShowInventory,
+            VirtualKeyCode::D => return RunState::ShowDropItem,
             VirtualKeyCode::Left | VirtualKeyCode::Numpad4 | VirtualKeyCode::H => {
                 try_move_player(-1, 0, &mut gs.ecs)
             }
@@ -99,7 +101,7 @@ fn get_item(ecs: &mut World) {
     let positions = ecs.read_storage::<Position>();
     let mut gamelog = ecs.fetch_mut::<GameLog>();
 
-    let mut target_item: Option<Entity> = None;
+    let mut target_item = None;
     for (item_entity, _item, position) in (&entities, &items, &positions).join() {
         if position.x == player_pos.x && position.y == player_pos.y {
             target_item = Some(item_entity);

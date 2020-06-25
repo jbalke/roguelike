@@ -1,28 +1,12 @@
 use super::{
     BlocksTile, CombatStats, Item, Monster, Name, Player, Position, Potion, Rect, Renderable,
-    Viewshed, MAPHEIGHT, MAPWIDTH,
+    Viewshed, MAPWIDTH,
 };
 use rltk::{RandomNumberGenerator, RGB};
 use specs::prelude::*;
 
 const MAX_MONSTERS: i32 = 4;
 const MAX_ITEMS: i32 = 2;
-
-fn health_potion(ecs: &mut World, x: i32, y: i32) {
-    ecs.create_entity()
-        .with(Position { x, y })
-        .with(Renderable {
-            glyph: rltk::to_cp437('¡'),
-            fg: RGB::named(rltk::MAGENTA),
-            bg: RGB::named(rltk::BLACK),
-        })
-        .with(Name {
-            name: "Health Potion".to_string(),
-        })
-        .with(Item {})
-        .with(Potion { heal_amount: 8 })
-        .build();
-}
 
 pub fn spawn_room(ecs: &mut World, room: &Rect) {
     let mut monster_spawn_points = Vec::new();
@@ -61,12 +45,14 @@ pub fn spawn_room(ecs: &mut World, room: &Rect) {
         }
     }
 
+    // spawn monsters
     for idx in monster_spawn_points.iter() {
         let x = *idx % MAPWIDTH;
         let y = *idx / MAPWIDTH;
         random_monster(ecs, x as i32, y as i32);
     }
 
+    // spawn health potions
     for idx in item_spawn_points.iter() {
         let x = *idx % MAPWIDTH;
         let y = *idx / MAPWIDTH;
@@ -74,33 +60,21 @@ pub fn spawn_room(ecs: &mut World, room: &Rect) {
     }
 }
 
-pub fn player(ecs: &mut World, player_x: i32, player_y: i32) -> Entity {
+fn health_potion(ecs: &mut World, x: i32, y: i32) {
     ecs.create_entity()
-        .with(Position {
-            x: player_x,
-            y: player_y,
-        })
+        .with(Position { x, y })
         .with(Renderable {
-            glyph: rltk::to_cp437('@'),
-            fg: RGB::named(rltk::YELLOW),
+            glyph: rltk::to_cp437('¡'),
+            fg: RGB::named(rltk::MAGENTA),
             bg: RGB::named(rltk::BLACK),
-        })
-        .with(Player {})
-        .with(Viewshed {
-            visible_tiles: Vec::new(),
-            range: 8,
-            dirty: true,
+            render_order: 2,
         })
         .with(Name {
-            name: "Player".to_string(),
+            name: "Health Potion".to_string(),
         })
-        .with(CombatStats {
-            max_hp: 30,
-            hp: 30,
-            defense: 2,
-            power: 5,
-        })
-        .build()
+        .with(Item {})
+        .with(Potion { heal_amount: 8 })
+        .build();
 }
 
 pub fn random_monster(ecs: &mut World, x: i32, y: i32) {
@@ -130,6 +104,7 @@ fn monster<S: ToString>(ecs: &mut World, x: i32, y: i32, glyph: rltk::FontCharTy
             glyph,
             fg: RGB::named(rltk::RED),
             bg: RGB::named(rltk::BLACK),
+            render_order: 1,
         })
         .with(Viewshed {
             visible_tiles: Vec::new(),
@@ -148,4 +123,34 @@ fn monster<S: ToString>(ecs: &mut World, x: i32, y: i32, glyph: rltk::FontCharTy
             power: 4,
         })
         .build();
+}
+
+pub fn player(ecs: &mut World, player_x: i32, player_y: i32) -> Entity {
+    ecs.create_entity()
+        .with(Position {
+            x: player_x,
+            y: player_y,
+        })
+        .with(Renderable {
+            glyph: rltk::to_cp437('@'),
+            fg: RGB::named(rltk::YELLOW),
+            bg: RGB::named(rltk::BLACK),
+            render_order: 0,
+        })
+        .with(Player {})
+        .with(Viewshed {
+            visible_tiles: Vec::new(),
+            range: 8,
+            dirty: true,
+        })
+        .with(Name {
+            name: "Player".to_string(),
+        })
+        .with(CombatStats {
+            max_hp: 30,
+            hp: 30,
+            defense: 2,
+            power: 5,
+        })
+        .build()
 }
