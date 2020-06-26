@@ -99,9 +99,10 @@ impl<'a> System<'a> for ItemUseSystem {
                     }
                 }
             }
+
             if used_item {
                 if let Some(consumable) = consumables.get_mut(useitem.item) {
-                    if consumable.uses == 1 {
+                    if consumable.uses <= 1 {
                         entities.delete(useitem.item).expect("Delete failed");
                     } else {
                         consumable.uses -= 1;
@@ -147,12 +148,12 @@ impl<'a> System<'a> for ItemDropSystem {
             dropper_pos.y = dropped_pos.y;
 
             let idx = map.xy_idx(dropper_pos.x, dropper_pos.y);
+            let item_name = &names.get(to_drop.item).unwrap().name;
             if map.tile_content[idx].len() > 1 {
                 if entity == *player_entity {
-                    gamelog.entries.push(format!(
-                        "You can not drop {} here.",
-                        names.get(to_drop.item).unwrap().name
-                    ));
+                    gamelog
+                        .entries
+                        .push(format!("You can not drop {} here.", item_name));
                 }
             } else {
                 positions
@@ -167,10 +168,7 @@ impl<'a> System<'a> for ItemDropSystem {
                 backpack.remove(to_drop.item);
 
                 if entity == *player_entity {
-                    gamelog.entries.push(format!(
-                        "You drop the {}.",
-                        names.get(to_drop.item).unwrap().name
-                    ));
+                    gamelog.entries.push(format!("You drop the {}.", item_name));
                 }
             }
         }
