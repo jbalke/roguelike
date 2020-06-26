@@ -34,6 +34,7 @@ pub enum RunState {
     MonsterTurn,
     ShowInventory,
     ShowDropItem,
+    ShowTargeting { range: i32, item: Entity },
 }
 
 pub struct State {
@@ -108,39 +109,62 @@ impl GameState for State {
                 newrunstate = RunState::AwaitingInput;
             }
             RunState::ShowInventory => {
-                let result = gui::show_inventory(self, ctx);
-                match result.0 {
+                let (response, item) = gui::show_inventory(self, ctx);
+                match response {
                     gui::ItemMenuResult::Cancel => newrunstate = RunState::AwaitingInput,
                     gui::ItemMenuResult::NoResponse => {}
                     gui::ItemMenuResult::Selected => {
-                        let item_entity = result.1.unwrap();
+                        let item_entity = item.unwrap();
+                        let is_ranged = self.ecs.read_storage::<Ranged>();
                         let mut intent = self.ecs.write_storage::<WantsToUseItem>();
-                        intent
-                            .insert(
-                                *self.ecs.fetch::<Entity>(),
-                                WantsToUseItem {
-                                    item: item_entity,
-                                    target: None,
-                                },
-                            )
-                            .expect("Unable to insert intent");
-                        newrunstate = RunState::PlayerTurn;
+
+                        if let Some(ranged_item) = is_ranged.get(item_entity) {
+                            newrunstate = RunState::ShowTargeting {
+                                range: ranged_item.range,
+                                item: item_entity,
+                            };
+                        } else {
+                            intent
+                                .insert(
+                                    *self.ecs.fetch::<Entity>(),
+                                    WantsToUseItem {
+                                        item: item_entity,
+                                        target: None,
+                                    },
+                                )
+                                .expect("Unable to insert intent");
+                            newrunstate = RunState::PlayerTurn;
+                        }
                     }
                 }
             }
             RunState::ShowDropItem => {
-                let result = gui::drop_item_menu(self, ctx);
-                match result.0 {
+                let (response, item) = gui::drop_item_menu(self, ctx);
+                match response {
                     gui::ItemMenuResult::Cancel => newrunstate = RunState::AwaitingInput,
                     gui::ItemMenuResult::NoResponse => {}
                     gui::ItemMenuResult::Selected => {
-                        let item_entity = result.1.unwrap();
+                        let item_entity = item.unwrap();
                         let mut intent = self.ecs.write_storage::<WantsToDropItem>();
                         intent
                             .insert(
                                 *self.ecs.fetch::<Entity>(),
                                 WantsToDropItem { item: item_entity },
                             )
+                            .expect("Unable to insert intent");
+                        newrunstate = RunState::PlayerTurn;
+                    }
+                }
+            }
+            RunState::ShowTargeting { range, item } => {
+                let (response, target) = gui::ranged_target(self, ctx, range);
+                match response {
+                    gui::ItemMenuResult::Cancel => newrunstate = RunState::AwaitingInput,
+                    gui::ItemMenuResult::NoResponse => {}
+                    gui::ItemMenuResult::Selected => {
+                        let mut intent = self.ecs.write_storage::<WantsToUseItem>();
+                        intent
+                            .insert(*self.ecs.fetch::<Entity>(), WantsToUseItem { item, target })
                             .expect("Unable to insert intent");
                         newrunstate = RunState::PlayerTurn;
                     }

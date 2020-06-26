@@ -1,6 +1,6 @@
 use super::{
-    CombatStats, Consumable, GameLog, InBackpack, Map, Name, Position, ProvidesHealing,
-    WantsToDropItem, WantsToPickupItem, WantsToUseItem,
+    CombatStats, Consumable, GameLog, InBackpack, InflictsDamage, Map, Name, Position,
+    ProvidesHealing, SufferDamage, WantsToDropItem, WantsToPickupItem, WantsToUseItem,
 };
 use specs::prelude::*;
 
@@ -47,6 +47,7 @@ pub struct ItemUseSystem {}
 
 impl<'a> System<'a> for ItemUseSystem {
     type SystemData = (
+        ReadExpect<'a, Map>,
         ReadExpect<'a, Entity>,
         WriteExpect<'a, GameLog>,
         Entities<'a>,
@@ -55,10 +56,13 @@ impl<'a> System<'a> for ItemUseSystem {
         WriteStorage<'a, Consumable>,
         ReadStorage<'a, ProvidesHealing>,
         WriteStorage<'a, CombatStats>,
+        ReadStorage<'a, InflictsDamage>,
+        WriteStorage<'a, SufferDamage>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
         let (
+            map,
             player_entity,
             mut gamelog,
             entities,
@@ -67,6 +71,8 @@ impl<'a> System<'a> for ItemUseSystem {
             mut consumables,
             healing,
             mut combat_stats,
+            inflict_damage,
+            mut suffer_damage,
         ) = data;
 
         for (entity, useitem) in (&entities, &wants_use).join() {
@@ -78,10 +84,16 @@ impl<'a> System<'a> for ItemUseSystem {
                 None => {
                     targets.push(*player_entity);
                 }
-                Some(target) => unimplemented!(),
+                Some(target) => {
+                    // Single target in tile
+                    let idx = map.xy_idx(target.x, target.y);
+                    for mob in map.tile_content[idx].iter() {
+                        targets.push(*mob);
+                    }
+                }
             }
 
-            // If a healing item, heal.
+            // If a healing item, apply the healing.
             if let Some(healer) = healing.get(useitem.item) {
                 used_item = false;
 
@@ -97,6 +109,24 @@ impl<'a> System<'a> for ItemUseSystem {
                         }
                         used_item = true;
                     }
+                }
+            }
+
+            // If it inflicts damage, apply it to the target cell
+            if let Some(damage) = inflict_damage.get(useitem.item) {
+                used_item = false;
+                for mob in targets.iter() {
+                    SufferDamage::new_damage(&mut suffer_damage, *mob, damage.damage);
+                    if entity == *player_entity {
+                        let mob_name = names.get(*mob).unwrap();
+                        let item_name = names.get(useitem.item).unwrap();
+                        gamelog.entries.push(format!(
+                            "You use {} on {}, inflicting {} hp.",
+                            item_name.name, mob_name.name, damage.damage
+                        ));
+                    }
+
+                    used_item = true;
                 }
             }
 
