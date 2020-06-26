@@ -1,5 +1,6 @@
 use super::{
-    CombatStats, GameLog, InBackpack, Map, Name, Player, Position, State, MAPHEIGHT, MAPWIDTH,
+    CombatStats, Consumable, GameLog, InBackpack, Map, Name, Player, Position, State, MAPHEIGHT,
+    MAPWIDTH,
 };
 use rltk::{Point, Rltk, VirtualKeyCode, RGB};
 use specs::prelude::*;
@@ -105,6 +106,7 @@ pub fn show_inventory(gs: &mut State, ctx: &mut Rltk) -> (ItemMenuResult, Option
     let names = gs.ecs.read_storage::<Name>();
     let backpack = gs.ecs.read_storage::<InBackpack>();
     let entities = gs.ecs.entities();
+    let consumables = gs.ecs.read_storage::<Consumable>();
 
     let inventory = (&backpack, &names)
         .join()
@@ -115,7 +117,7 @@ pub fn show_inventory(gs: &mut State, ctx: &mut Rltk) -> (ItemMenuResult, Option
     ctx.draw_box(
         15,
         y - 2,
-        31,
+        34,
         (count + 3) as i32,
         RGB::named(rltk::WHITE),
         RGB::named(rltk::BLACK),
@@ -141,6 +143,11 @@ pub fn show_inventory(gs: &mut State, ctx: &mut Rltk) -> (ItemMenuResult, Option
         .join()
         .filter(|(_, item, _)| item.owner == *player_entity)
     {
+        let mut uses = 1;
+        if let Some(consumable) = consumables.get(entity) {
+            uses = consumable.uses;
+        }
+
         ctx.set(
             17,
             y,
@@ -162,8 +169,12 @@ pub fn show_inventory(gs: &mut State, ctx: &mut Rltk) -> (ItemMenuResult, Option
             RGB::named(rltk::BLACK),
             rltk::to_cp437(')'),
         );
+        let mut item_decription = name.name.to_string();
+        if uses > 1 {
+            item_decription.push_str(&format!(" ({})", uses))
+        }
+        ctx.print(21, y, &item_decription);
 
-        ctx.print(21, y, &name.name.to_string());
         equippable.push(entity);
         y += 1;
         j += 1;

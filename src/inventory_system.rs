@@ -1,6 +1,6 @@
 use super::{
-    CombatStats, GameLog, InBackpack, Name, Position, Potion, WantsToDrinkPotion, WantsToDropItem,
-    WantsToPickupItem,
+    CombatStats, Consumable, GameLog, InBackpack, Map, Name, Position, ProvidesHealing,
+    WantsToDropItem, WantsToPickupItem, WantsToUseItem,
 };
 use specs::prelude::*;
 
@@ -43,16 +43,17 @@ impl<'a> System<'a> for ItemCollectionSystem {
     }
 }
 
-pub struct PotionUseSystem {}
+pub struct ItemUseSystem {}
 
-impl<'a> System<'a> for PotionUseSystem {
+impl<'a> System<'a> for ItemUseSystem {
     type SystemData = (
         ReadExpect<'a, Entity>,
         WriteExpect<'a, GameLog>,
         Entities<'a>,
-        WriteStorage<'a, WantsToDrinkPotion>,
+        WriteStorage<'a, WantsToUseItem>,
         ReadStorage<'a, Name>,
-        ReadStorage<'a, Potion>,
+        WriteStorage<'a, Consumable>,
+        ReadStorage<'a, ProvidesHealing>,
         WriteStorage<'a, CombatStats>,
     );
 
@@ -61,30 +62,55 @@ impl<'a> System<'a> for PotionUseSystem {
             player_entity,
             mut gamelog,
             entities,
-            mut wants_drink,
+            mut wants_use,
             names,
-            potions,
+            mut consumables,
+            healing,
             mut combat_stats,
         ) = data;
 
-        for (entity, drink, stats) in (&entities, &wants_drink, &mut combat_stats).join() {
-            match potions.get(drink.potion) {
-                None => {}
-                Some(potion) => {
-                    stats.hp = i32::min(stats.max_hp, stats.hp + potion.heal_amount);
-                    if entity == *player_entity {
-                        gamelog.entries.push(format!(
-                            "You drink the {}, healing {} hp.",
-                            names.get(drink.potion).unwrap().name,
-                            potion.heal_amount
-                        ));
+        for (entity, useitem) in (&entities, &wants_use).join() {
+            let mut used_item = true;
+
+            // Targeting
+            let mut targets = Vec::new();
+            match useitem.target {
+                None => {
+                    targets.push(*player_entity);
+                }
+                Some(target) => unimplemented!(),
+            }
+
+            // If a healing item, heal.
+            if let Some(healer) = healing.get(useitem.item) {
+                used_item = false;
+
+                for target in targets.iter() {
+                    if let Some(stats) = combat_stats.get_mut(*target) {
+                        stats.hp = i32::min(stats.max_hp, stats.hp + healer.heal_amount);
+                        if entity == *player_entity {
+                            gamelog.entries.push(format!(
+                                "You use the {}, healing {} hp.",
+                                names.get(useitem.item).unwrap().name,
+                                healer.heal_amount
+                            ));
+                        }
+                        used_item = true;
                     }
-                    entities.delete(drink.potion).expect("Delete failed");
+                }
+            }
+            if used_item {
+                if let Some(consumable) = consumables.get_mut(useitem.item) {
+                    if consumable.uses == 1 {
+                        entities.delete(useitem.item).expect("Delete failed");
+                    } else {
+                        consumable.uses -= 1;
+                    }
                 }
             }
         }
 
-        wants_drink.clear();
+        wants_use.clear();
     }
 }
 
@@ -92,6 +118,7 @@ pub struct ItemDropSystem {}
 
 impl<'a> System<'a> for ItemDropSystem {
     type SystemData = (
+        ReadExpect<'a, Map>,
         ReadExpect<'a, Entity>,
         WriteExpect<'a, GameLog>,
         Entities<'a>,
@@ -103,6 +130,7 @@ impl<'a> System<'a> for ItemDropSystem {
 
     fn run(&mut self, data: Self::SystemData) {
         let (
+            map,
             player_entity,
             mut gamelog,
             entities,
@@ -118,22 +146,32 @@ impl<'a> System<'a> for ItemDropSystem {
             dropper_pos.x = dropped_pos.x;
             dropper_pos.y = dropped_pos.y;
 
-            positions
-                .insert(
-                    to_drop.item,
-                    Position {
-                        x: dropper_pos.x,
-                        y: dropper_pos.y,
-                    },
-                )
-                .expect("Unable to insert position");
-            backpack.remove(to_drop.item);
+            let idx = map.xy_idx(dropper_pos.x, dropper_pos.y);
+            if map.tile_content[idx].len() > 1 {
+                if entity == *player_entity {
+                    gamelog.entries.push(format!(
+                        "You can not drop {} here.",
+                        names.get(to_drop.item).unwrap().name
+                    ));
+                }
+            } else {
+                positions
+                    .insert(
+                        to_drop.item,
+                        Position {
+                            x: dropper_pos.x,
+                            y: dropper_pos.y,
+                        },
+                    )
+                    .expect("Unable to insert position");
+                backpack.remove(to_drop.item);
 
-            if entity == *player_entity {
-                gamelog.entries.push(format!(
-                    "You drop the {}.",
-                    names.get(to_drop.item).unwrap().name
-                ));
+                if entity == *player_entity {
+                    gamelog.entries.push(format!(
+                        "You drop the {}.",
+                        names.get(to_drop.item).unwrap().name
+                    ));
+                }
             }
         }
 
