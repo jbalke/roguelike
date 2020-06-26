@@ -1,6 +1,6 @@
 use super::{
-    CombatStats, Consumable, GameLog, InBackpack, InflictsDamage, Map, Name, Position,
-    ProvidesHealing, SufferDamage, WantsToDropItem, WantsToPickupItem, WantsToUseItem,
+    AreaOfEffect, CombatStats, Consumable, GameLog, InBackpack, InflictsDamage, Map, Name,
+    Position, ProvidesHealing, SufferDamage, WantsToDropItem, WantsToPickupItem, WantsToUseItem,
 };
 use specs::prelude::*;
 
@@ -58,6 +58,7 @@ impl<'a> System<'a> for ItemUseSystem {
         WriteStorage<'a, CombatStats>,
         ReadStorage<'a, InflictsDamage>,
         WriteStorage<'a, SufferDamage>,
+        ReadStorage<'a, AreaOfEffect>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
@@ -73,6 +74,7 @@ impl<'a> System<'a> for ItemUseSystem {
             mut combat_stats,
             inflict_damage,
             mut suffer_damage,
+            aoe,
         ) = data;
 
         for (entity, useitem) in (&entities, &wants_use).join() {
@@ -85,10 +87,29 @@ impl<'a> System<'a> for ItemUseSystem {
                     targets.push(*player_entity);
                 }
                 Some(target) => {
-                    // Single target in tile
-                    let idx = map.xy_idx(target.x, target.y);
-                    for mob in map.tile_content[idx].iter() {
-                        targets.push(*mob);
+                    let area_of_effect = aoe.get(useitem.item);
+                    match area_of_effect {
+                        Some(aoe) => {
+                            // AoE
+                            let mut blast_tiles = rltk::field_of_view(target, aoe.radius, &*map);
+                            blast_tiles.retain(|p| {
+                                p.x > 0 && p.x < map.width - 1 && p.y > 0 && p.y < map.height - 1
+                            });
+
+                            for tile_idx in blast_tiles.iter() {
+                                let idx = map.xy_idx(tile_idx.x, tile_idx.y);
+                                for mob in map.tile_content[idx].iter() {
+                                    targets.push(*mob);
+                                }
+                            }
+                        }
+                        None => {
+                            // Single target in tile
+                            let idx = map.xy_idx(target.x, target.y);
+                            for mob in map.tile_content[idx].iter() {
+                                targets.push(*mob);
+                            }
+                        }
                     }
                 }
             }
