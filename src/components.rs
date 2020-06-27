@@ -122,3 +122,8 @@ pub struct InflictsDamage {
 pub struct AreaOfEffect {
     pub radius: i32,
 }
+
+#[derive(Component, Debug)]
+pub struct Confusion {
+    pub turns: i32,
+}

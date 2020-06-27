@@ -1,6 +1,7 @@
 use super::{
-    AreaOfEffect, CombatStats, Consumable, GameLog, InBackpack, InflictsDamage, Map, Name,
-    Position, ProvidesHealing, SufferDamage, WantsToDropItem, WantsToPickupItem, WantsToUseItem,
+    AreaOfEffect, CombatStats, Confusion, Consumable, GameLog, InBackpack, InflictsDamage, Map,
+    Name, Position, ProvidesHealing, SufferDamage, WantsToDropItem, WantsToPickupItem,
+    WantsToUseItem,
 };
 use specs::prelude::*;
 
@@ -59,6 +60,7 @@ impl<'a> System<'a> for ItemUseSystem {
         ReadStorage<'a, InflictsDamage>,
         WriteStorage<'a, SufferDamage>,
         ReadStorage<'a, AreaOfEffect>,
+        WriteStorage<'a, Confusion>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
@@ -75,6 +77,7 @@ impl<'a> System<'a> for ItemUseSystem {
             inflict_damage,
             mut suffer_damage,
             aoe,
+            mut confused,
         ) = data;
 
         for (entity, useitem) in (&entities, &wants_use).join() {
@@ -130,6 +133,32 @@ impl<'a> System<'a> for ItemUseSystem {
                         }
                         used_item = true;
                     }
+                }
+            }
+
+            let mut add_confusion = Vec::new();
+            if let Some(confusion) = confused.get(useitem.item) {
+                used_item = false;
+
+                for mob in targets.iter() {
+                    add_confusion.push((*mob, confusion.turns));
+
+                    if entity == *player_entity {
+                        let mob_name = &names.get(*mob).unwrap().name;
+                        let item_name = &names.get(useitem.item).unwrap().name;
+                        gamelog.entries.push(format!(
+                            "You use {} on {}, confusing them.",
+                            item_name, mob_name,
+                        ));
+                    }
+                }
+
+                for (mob, turns) in add_confusion.iter() {
+                    confused
+                        .insert(*mob, Confusion { turns: *turns })
+                        .expect("Unable to insert status");
+
+                    used_item = true;
                 }
             }
 

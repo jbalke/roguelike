@@ -34,7 +34,11 @@ pub enum RunState {
     MonsterTurn,
     ShowInventory,
     ShowDropItem,
-    ShowTargeting { range: i32, item: Entity },
+    ShowTargeting {
+        range: i32,
+        radius: i32,
+        item: Entity,
+    },
 }
 
 pub struct State {
@@ -117,11 +121,20 @@ impl GameState for State {
                         let item_entity = item.unwrap();
                         let is_ranged = self.ecs.read_storage::<Ranged>();
                         let mut intent = self.ecs.write_storage::<WantsToUseItem>();
+                        let is_aoe = self.ecs.read_storage::<AreaOfEffect>();
 
                         if let Some(ranged_item) = is_ranged.get(item_entity) {
+                            let mut radius = 0;
+                            match is_aoe.get(item_entity) {
+                                None => {}
+                                Some(aoe) => {
+                                    radius = aoe.radius;
+                                }
+                            }
                             newrunstate = RunState::ShowTargeting {
                                 range: ranged_item.range,
                                 item: item_entity,
+                                radius,
                             };
                         } else {
                             intent
@@ -156,8 +169,12 @@ impl GameState for State {
                     }
                 }
             }
-            RunState::ShowTargeting { range, item } => {
-                let (response, target) = gui::ranged_target(self, ctx, range);
+            RunState::ShowTargeting {
+                range,
+                radius,
+                item,
+            } => {
+                let (response, target) = gui::ranged_target(self, ctx, range, radius);
                 match response {
                     gui::ItemMenuResult::Cancel => newrunstate = RunState::AwaitingInput,
                     gui::ItemMenuResult::NoResponse => {}
@@ -208,6 +225,7 @@ fn main() -> rltk::BError {
     gs.ecs.register::<Ranged>();
     gs.ecs.register::<InflictsDamage>();
     gs.ecs.register::<AreaOfEffect>();
+    gs.ecs.register::<Confusion>();
 
     let map: Map = map::new_map_rooms_and_corridors();
     let (player_x, player_y) = map.rooms[0].center();

@@ -18,6 +18,7 @@ pub fn ranged_target(
     gs: &mut State,
     ctx: &mut Rltk,
     range: i32,
+    radius: i32,
 ) -> (ItemMenuResult, Option<Point>) {
     let player_entity = gs.ecs.fetch::<Entity>();
     let player_pos = gs.ecs.fetch::<Point>();
@@ -33,16 +34,19 @@ pub fn ranged_target(
 
     // Highlight available targets
     let mut available_cells = Vec::new();
-    if let Some(visible) = viewsheds.get(*player_entity) {
-        for idx in visible.visible_tiles.iter() {
-            let distance = rltk::DistanceAlg::Pythagoras.distance2d(*player_pos, *idx);
-            if distance <= range as f32 {
-                ctx.set_bg(idx.x, idx.y, RGB::named(rltk::BLUE));
-                available_cells.push(idx);
+    let player_viewshed = viewsheds.get(*player_entity);
+
+    match player_viewshed {
+        Some(visible) => {
+            for idx in visible.visible_tiles.iter() {
+                let distance = rltk::DistanceAlg::Pythagoras.distance2d(*player_pos, *idx);
+                if distance <= range as f32 {
+                    ctx.set_bg(idx.x, idx.y, RGB::named(rltk::BLUE));
+                    available_cells.push(idx);
+                }
             }
         }
-    } else {
-        return (ItemMenuResult::Cancel, None);
+        None => return (ItemMenuResult::Cancel, None),
     }
 
     // Draw mouse cursor
@@ -56,6 +60,20 @@ pub fn ranged_target(
     }
 
     if valid_target {
+        if radius > 0 {
+            let map = gs.ecs.fetch::<Map>();
+            let visible = player_viewshed.unwrap();
+
+            let mut blast_tiles =
+                rltk::field_of_view(Point::new(mouse_pos.0, mouse_pos.1), radius, &*map);
+
+            blast_tiles.retain(|p| visible.visible_tiles.contains(p));
+
+            for tile in blast_tiles.iter() {
+                ctx.set_bg(tile.x, tile.y, RGB::named(rltk::ORANGE));
+            }
+        }
+
         ctx.set_bg(mouse_pos.0, mouse_pos.1, RGB::named(rltk::CYAN));
         if ctx.left_click {
             return (
