@@ -10,8 +10,10 @@ const LOG_LINES: usize = 5;
 #[derive(PartialEq, Copy, Clone)]
 pub enum MainMenuSelection {
     NewGame,
+    OverwriteSaveGame,
     LoadGame,
     Quit,
+    Cancel,
 }
 
 #[derive(PartialEq, Copy, Clone)]
@@ -58,33 +60,49 @@ pub fn main_menu(gs: &mut State, ctx: &mut Rltk) -> MainMenuResult {
             );
         }
 
-        if save_exists {
-            if selection == MainMenuSelection::LoadGame {
-                ctx.print_color_centered(
-                    25,
-                    RGB::named(rltk::MAGENTA),
-                    RGB::named(rltk::BLACK),
-                    "Load Game",
-                );
-            } else {
-                ctx.print_color_centered(
-                    25,
-                    RGB::named(rltk::WHITE),
-                    RGB::named(rltk::BLACK),
-                    "Load Game",
-                );
-            }
+        if selection == MainMenuSelection::OverwriteSaveGame && save_exists {
+            ctx.print_color_centered(
+                25,
+                RGB::named(rltk::MAGENTA),
+                RGB::named(rltk::BLACK),
+                "Save Game",
+            );
+        } else {
+            ctx.print_color_centered(
+                25,
+                RGB::named(rltk::WHITE),
+                RGB::named(rltk::BLACK),
+                "Save Game",
+            );
         }
-        if selection == MainMenuSelection::Quit {
+
+        let load_fg = if save_exists { rltk::WHITE } else { rltk::GREY };
+        if selection == MainMenuSelection::LoadGame && save_exists {
             ctx.print_color_centered(
                 26,
+                RGB::named(rltk::MAGENTA),
+                RGB::named(rltk::BLACK),
+                "Load Game",
+            );
+        } else {
+            ctx.print_color_centered(
+                26,
+                RGB::named(load_fg),
+                RGB::named(rltk::BLACK),
+                "Load Game",
+            );
+        }
+
+        if selection == MainMenuSelection::Quit {
+            ctx.print_color_centered(
+                27,
                 RGB::named(rltk::MAGENTA),
                 RGB::named(rltk::BLACK),
                 "Quit Game",
             );
         } else {
             ctx.print_color_centered(
-                26,
+                27,
                 RGB::named(rltk::WHITE),
                 RGB::named(rltk::BLACK),
                 "Quit Game",
@@ -100,19 +118,25 @@ pub fn main_menu(gs: &mut State, ctx: &mut Rltk) -> MainMenuResult {
             Some(key) => match key {
                 VirtualKeyCode::Escape => {
                     return MainMenuResult::NoSelection {
-                        selected: MainMenuSelection::Quit,
+                        selected: MainMenuSelection::Cancel,
                     }
                 }
                 VirtualKeyCode::Up => {
                     let mut new_selection;
                     match selection {
                         MainMenuSelection::NewGame => new_selection = MainMenuSelection::Quit,
-                        MainMenuSelection::LoadGame => new_selection = MainMenuSelection::NewGame,
+                        MainMenuSelection::OverwriteSaveGame => {
+                            new_selection = MainMenuSelection::NewGame
+                        }
+                        MainMenuSelection::LoadGame => {
+                            new_selection = MainMenuSelection::OverwriteSaveGame
+                        }
                         MainMenuSelection::Quit => new_selection = MainMenuSelection::LoadGame,
+                        _ => unreachable!(),
                     }
 
                     if selection == MainMenuSelection::LoadGame && !save_exists {
-                        new_selection = MainMenuSelection::NewGame;
+                        new_selection = MainMenuSelection::OverwriteSaveGame;
                     }
 
                     return MainMenuResult::NoSelection {
@@ -122,9 +146,15 @@ pub fn main_menu(gs: &mut State, ctx: &mut Rltk) -> MainMenuResult {
                 VirtualKeyCode::Down => {
                     let mut new_selection;
                     match selection {
-                        MainMenuSelection::NewGame => new_selection = MainMenuSelection::LoadGame,
+                        MainMenuSelection::NewGame => {
+                            new_selection = MainMenuSelection::OverwriteSaveGame
+                        }
+                        MainMenuSelection::OverwriteSaveGame => {
+                            new_selection = MainMenuSelection::LoadGame
+                        }
                         MainMenuSelection::LoadGame => new_selection = MainMenuSelection::Quit,
                         MainMenuSelection::Quit => new_selection = MainMenuSelection::NewGame,
+                        _ => unreachable!(),
                     }
 
                     if selection == MainMenuSelection::LoadGame && !save_exists {
@@ -421,6 +451,16 @@ pub fn draw_ui(ecs: &World, ctx: &mut Rltk) {
         6,
         RGB::named(rltk::WHITE),
         RGB::named(rltk::BLACK),
+    );
+
+    let map = ecs.fetch::<Map>();
+    let depth = format!("Depth: {}", map.depth);
+    ctx.print_color(
+        2,
+        43,
+        RGB::named(rltk::YELLOW),
+        RGB::named(rltk::BLACK),
+        &depth,
     );
 
     let combat_stats = ecs.read_storage::<CombatStats>();
