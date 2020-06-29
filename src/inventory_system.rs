@@ -1,9 +1,33 @@
 use super::{
-    AreaOfEffect, CombatStats, Confusion, Consumable, GameLog, InBackpack, InflictsDamage, Map,
-    Name, Position, ProvidesHealing, SufferDamage, WantsToDropItem, WantsToPickupItem,
-    WantsToUseItem,
+    AreaOfEffect, CombatStats, Confusion, Consumable, Equippable, Equipped, GameLog, InBackpack,
+    InflictsDamage, Map, Name, Position, ProvidesHealing, SufferDamage, WantsToDropItem,
+    WantsToPickupItem, WantsToRemoveItem, WantsToUseItem,
 };
 use specs::prelude::*;
+
+pub struct ItemRemoveSystem {}
+
+impl<'a> System<'a> for ItemRemoveSystem {
+    type SystemData = (
+        Entities<'a>,
+        WriteStorage<'a, WantsToRemoveItem>,
+        WriteStorage<'a, Equipped>,
+        WriteStorage<'a, InBackpack>,
+    );
+
+    fn run(&mut self, data: Self::SystemData) {
+        let (entities, mut wants_remove, mut equipped, mut backpack) = data;
+
+        for (entity, to_remove) in (&entities, &wants_remove).join() {
+            equipped.remove(to_remove.item);
+            backpack
+                .insert(to_remove.item, InBackpack { owner: entity })
+                .expect("Unable to insert backpack");
+        }
+
+        wants_remove.clear();
+    }
+}
 
 pub struct ItemCollectionSystem {}
 
@@ -61,6 +85,9 @@ impl<'a> System<'a> for ItemUseSystem {
         WriteStorage<'a, SufferDamage>,
         ReadStorage<'a, AreaOfEffect>,
         WriteStorage<'a, Confusion>,
+        ReadStorage<'a, Equippable>,
+        WriteStorage<'a, Equipped>,
+        WriteStorage<'a, InBackpack>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
@@ -78,6 +105,9 @@ impl<'a> System<'a> for ItemUseSystem {
             mut suffer_damage,
             aoe,
             mut confused,
+            equippable,
+            mut equipped,
+            mut backpack,
         ) = data;
 
         for (entity, useitem) in (&entities, &wants_use).join() {
@@ -114,6 +144,48 @@ impl<'a> System<'a> for ItemUseSystem {
                             }
                         }
                     }
+                }
+            }
+
+            // If it is equippable, then we want to equip it - and unequip whatever else was in that slot
+            if let Some(can_equip) = equippable.get(useitem.item) {
+                let target_slot = can_equip.slot;
+                let target = targets[0];
+
+                // remove any item currently equipped in item's slot
+                let mut to_unequip: Vec<Entity> = vec![];
+                for (item_entity, already_equipped, name) in (&entities, &equipped, &names).join() {
+                    if already_equipped.owner == target && already_equipped.slot == target_slot {
+                        to_unequip.push(item_entity);
+                        if target == *player_entity {
+                            gamelog.entries.push(format!("You unequip {}.", name.name));
+                        }
+                    }
+                }
+
+                for item in to_unequip.iter() {
+                    equipped.remove(*item);
+                    backpack
+                        .insert(*item, InBackpack { owner: target })
+                        .expect("Unable to insert backpack entry");
+                }
+
+                // Equip item
+                equipped
+                    .insert(
+                        useitem.item,
+                        Equipped {
+                            owner: target,
+                            slot: target_slot,
+                        },
+                    )
+                    .expect("Unable to insert equipped component");
+                backpack.remove(useitem.item);
+                if target == *player_entity {
+                    gamelog.entries.push(format!(
+                        "You equip {}",
+                        names.get(useitem.item).unwrap().name
+                    ));
                 }
             }
 
