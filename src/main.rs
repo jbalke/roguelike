@@ -6,6 +6,8 @@ use specs::{
 
 mod gamelog;
 mod gui;
+mod random_table;
+pub use random_table::*;
 pub mod saveload_system;
 mod spawner;
 pub use gamelog::GameLog;
@@ -111,16 +113,17 @@ impl State {
 
         // Build new map and place player
         let worldmap;
+        let current_depth;
         {
             let mut worldmap_resource = self.ecs.write_resource::<Map>();
-            let current_depth = worldmap_resource.depth;
+            current_depth = worldmap_resource.depth;
             *worldmap_resource = map::new_map_rooms_and_corridors(current_depth + 1);
             worldmap = worldmap_resource.clone();
         }
 
         // Spawn monsters
         for room in worldmap.rooms.iter().skip(1) {
-            spawner::spawn_room(&mut self.ecs, room);
+            spawner::spawn_room(&mut self.ecs, room, current_depth + 1);
         }
 
         // Place player and update resources
@@ -372,7 +375,7 @@ fn main() -> rltk::BError {
 
     gs.ecs.insert(rltk::RandomNumberGenerator::new());
     for room in map.rooms.iter().skip(1) {
-        spawner::spawn_room(&mut gs.ecs, room);
+        spawner::spawn_room(&mut gs.ecs, room, 1);
     }
 
     gs.ecs.insert(map);
